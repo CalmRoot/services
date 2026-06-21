@@ -202,6 +202,7 @@ jobs:
           severity: HIGH,CRITICAL
           exit-code: '1'
           ignore-unfixed: true
+          vuln-type: os
 
       - name: Upload Trivy scan results
         uses: github/codeql-action/upload-sarif@v3
@@ -223,7 +224,7 @@ jobs:
           from: CalmRoot CI Pipeline
           body: |
             Trivy container scan failed for: ${{ matrix.service }}
-            High or Critical vulnerabilities found. Merge is blocked.
+            High or Critical OS vulnerabilities found. Merge is blocked.
 
             Branch : ${{ github.ref_name }}
             Commit : ${{ github.sha }}
@@ -254,13 +255,12 @@ jobs:
               '|-------|--------|',
               `| SonarCloud Code Quality | ${status(sonar)} |`,
               `| Snyk Dependencies | ${status(snyk)} |`,
-              `| Trivy Container Scan | ${status(trivy)} |`,
+              `| Trivy Container Scan (OS only) | ${status(trivy)} |`,
               '',
               allPassed
                 ? 'All checks passed. Safe to merge.'
                 : 'One or more checks failed. Fix issues before merging.'
             ].join('\n');
-
             github.rest.issues.createComment({
               issue_number: context.issue.number,
               owner: context.repo.owner,
