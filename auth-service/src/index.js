@@ -52,6 +52,24 @@ app.get('/health', (req, res) => {
   });
 });
 
+
+app.get('/api/auth/healthz', (req, res) => {
+  res.status(200).json({
+    status: 'healthy',
+    service: 'auth-service',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime()
+  });
+});
+
+app.get('/api/auth/ready', (req, res) => {
+  if (isReady) {
+    res.status(200).json({ status: 'ready', service: 'auth-service' });
+  } else {
+    res.status(503).json({ status: 'not ready', service: 'auth-service' });
+  }
+});
+
 app.use('/api/auth', authRoutes);
 app.use('/api/wellness', wellnessRoutes);
 

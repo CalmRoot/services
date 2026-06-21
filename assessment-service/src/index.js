@@ -53,6 +53,24 @@ app.get('/health', (req, res) => {
 
 app.use('/api/assessment', assessmentRoutes);
 
+app.get('/api/assessment/healthz', (req, res) => {
+  res.status(200).json({
+    status: 'healthy',
+    service: 'assessment-service',
+    timestamp: new Date().toISOString(),
+    uptime: process.uptime()
+  });
+});
+
+app.get('/api/assessment/ready', (req, res) => {
+  if (isReady) {
+    res.status(200).json({ status: 'ready', service: 'assessment-service' });
+  } else {
+    res.status(503).json({ status: 'not ready', service: 'assessment-service' });
+  }
+});
+
+
 app.use((err, req, res, next) => {
   console.error('Unhandled error:', err);
   res.status(500).json({ success: false, message: 'Internal server error.' });
