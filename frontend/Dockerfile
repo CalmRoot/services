@@ -1,4 +1,5 @@
 FROM node:20-alpine AS builder
+RUN apk update && apk upgrade --no-cache
 WORKDIR /app
 ARG VITE_AUTH_URL=""
 ARG VITE_ASSESSMENT_URL=""
@@ -13,11 +14,21 @@ RUN npm ci
 COPY . .
 RUN npm run build
 
-FROM nginx:alpine
+FROM nginx:1.27-alpine AS production
+RUN apk update && apk upgrade --no-cache && \
+    rm -rf /var/cache/apk/*
+RUN addgroup -S calmroot && adduser -S calmroot -G calmroot
 COPY --from=builder /app/dist /usr/share/nginx/html
 COPY nginx.conf /etc/nginx/conf.d/default.conf
+RUN chown -R calmroot:calmroot /usr/share/nginx/html && \
+    chown -R calmroot:calmroot /var/cache/nginx && \
+    chown -R calmroot:calmroot /var/log/nginx && \
+    chown -R calmroot:calmroot /etc/nginx/conf.d && \
+    touch /var/run/nginx.pid && \
+    chown -R calmroot:calmroot /var/run/nginx.pid
+USER calmroot
+EXPOSE 80
 HEALTHCHECK --interval=30s --timeout=10s \
   --start-period=10s --retries=3 \
-  CMD wget -q --spider http://localhost:80/ || exit 1
-EXPOSE 80
+  CMD wget -q --spider http://localhost:80/healthz || exit 1
 CMD ["nginx", "-g", "daemon off;"]
