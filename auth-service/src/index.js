@@ -62,7 +62,7 @@ app.use((err, req, res, next) => {
 
 const start = async () => {
   try {
-    await initializeSecrets(['calmroot/production/jwt-secret']);
+    await initializeSecrets(['calmroot/prod/jwt']);
     await runDefaultSeed();
     isReady = true;
     app.listen(PORT, () => {

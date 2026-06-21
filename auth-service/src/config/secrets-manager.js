@@ -11,7 +11,7 @@ function getEnvFallbackKey(secretName) {
   return lastPart.replace(/-/g, '_').toUpperCase();
 }
 
-async function initializeSecrets(secretNames = ['calmroot/production/jwt-secret']) {
+async function initializeSecrets(secretNames = ['calmroot/prod/jwt']) {
   if (process.env.NODE_ENV !== 'production') {
     console.log('Not in production. Skipping Secrets Manager initialization, using env variables.');
     return;
