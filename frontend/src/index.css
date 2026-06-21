@@ -1,0 +1,284 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+@layer base {
+  :root {
+    /* CalmRoot Light Mode — maps legacy variable names to new brand */
+    --primary: #4A7C59;
+    --secondary: #6BAE7F;
+    --accent: #2D5A3D;
+    --bg: #F7F5F0;
+    --surface: #FFFFFF;
+    --success: #4A7C59;
+    --warning: #D4AF37;
+    --danger: #C0705A;
+    --moderate: #8B7355;
+    --text: #2C3E2D;
+    --muted: #6B7C6B;
+    --border: #D4DDD4;
+  }
+
+  .dark {
+    --primary: #6BAE7F;
+    --secondary: #4A7C59;
+    --accent: #6BAE7F;
+    --bg: #0D1117;
+    --surface: #161B22;
+    --success: #6BAE7F;
+    --warning: #D4AF37;
+    --danger: #C0705A;
+    --moderate: #C4A882;
+    --text: #E6EDF3;
+    --muted: #8B949E;
+    --border: #30363D;
+  }
+}
+
+* {
+  scrollbar-color: var(--border) var(--bg);
+}
+
+body {
+  background-color: var(--bg);
+  color: var(--text);
+  font-family: 'DM Sans', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, "Helvetica Neue", Arial, sans-serif;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  transition: background-color 0.3s ease, color 0.3s ease;
+}
+
+/* Custom scrollbar for better aesthetics */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--bg);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--border);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: var(--primary);
+}
+
+/* ═══════ UTILITY CLASSES ═══════ */
+
+.transition-all-smooth {
+  transition-property: all;
+  transition-timing-function: cubic-bezier(0.4, 0, 0.2, 1);
+  transition-duration: 300ms;
+}
+
+.hover-scale {
+  transition: transform 0.2s ease-in-out;
+}
+
+.hover-scale:hover {
+  transform: scale(1.02);
+}
+
+/* ═══════ GLASSMORPHISM ═══════ */
+
+.glass {
+  background: rgba(255, 255, 255, 0.08);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+}
+
+.glass-light {
+  background: rgba(255, 255, 255, 0.7);
+  backdrop-filter: blur(20px);
+  -webkit-backdrop-filter: blur(20px);
+  border: 1px solid rgba(255, 255, 255, 0.3);
+}
+
+.dark .glass-light {
+  background: rgba(22, 27, 34, 0.7);
+  border: 1px solid rgba(48, 54, 61, 0.5);
+}
+
+/* ═══════ NEUMORPHISM (Light mode) ═══════ */
+
+.neu-card {
+  box-shadow: 6px 6px 12px #d1cfc9, -6px -6px 12px #ffffff;
+}
+
+.dark .neu-card {
+  box-shadow: 6px 6px 12px rgba(0,0,0,0.4), -6px -6px 12px rgba(48,54,61,0.3);
+}
+
+/* ═══════ 3D PERSPECTIVE HOVER ═══════ */
+
+.perspective-card {
+  transition: transform 0.4s ease, box-shadow 0.4s ease;
+  transform-style: preserve-3d;
+}
+
+.perspective-card:hover {
+  transform: perspective(1000px) rotateX(2deg) rotateY(2deg) translateY(-8px);
+  box-shadow: 0 20px 60px rgba(74, 124, 89, 0.15);
+}
+
+/* ═══════ GRADIENT TEXT ═══════ */
+
+.gradient-text {
+  background: linear-gradient(135deg, #6BAE7F, #C4A882);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+.gradient-text-hero {
+  background: linear-gradient(135deg, #6BAE7F 0%, #C4A882 50%, #D4AF37 100%);
+  -webkit-background-clip: text;
+  -webkit-text-fill-color: transparent;
+  background-clip: text;
+}
+
+/* ═══════ GRAIN TEXTURE OVERLAY ═══════ */
+
+.grain-overlay::after {
+  content: '';
+  position: absolute;
+  inset: 0;
+  opacity: 0.03;
+  pointer-events: none;
+  background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 256 256' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='noise'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='4' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23noise)'/%3E%3C/svg%3E");
+}
+
+/* ═══════ SHIMMER LOADING ═══════ */
+
+.shimmer {
+  background: linear-gradient(90deg, transparent 0%, rgba(74,124,89,0.08) 50%, transparent 100%);
+  background-size: 200% 100%;
+  animation: shimmer 2s linear infinite;
+}
+
+/* ═══════ GLOW EFFECT ═══════ */
+
+.glow-primary {
+  box-shadow: 0 0 20px rgba(74, 124, 89, 0.3);
+  transition: box-shadow 0.3s ease;
+}
+
+.glow-primary:hover {
+  box-shadow: 0 0 40px rgba(74, 124, 89, 0.6);
+}
+
+/* ═══════ ANIMATED GRADIENT BORDER ═══════ */
+
+@property --angle {
+  syntax: '<angle>';
+  initial-value: 0deg;
+  inherits: false;
+}
+
+.gradient-border {
+  border: 2px solid transparent;
+  background-origin: border-box;
+  background-clip: padding-box, border-box;
+  background-image:
+    linear-gradient(var(--bg), var(--bg)),
+    conic-gradient(from var(--angle), #4A7C59, #6BAE7F, #C4A882, #D4AF37, #4A7C59);
+  animation: borderRotate 4s linear infinite;
+}
+
+@keyframes borderRotate {
+  to { --angle: 360deg; }
+}
+
+/* ═══════ FLOATING PARTICLES ═══════ */
+
+@keyframes particleFloat {
+  0%, 100% { transform: translateY(0) translateX(0) scale(1); opacity: 0.4; }
+  25% { transform: translateY(-30px) translateX(10px) scale(1.1); opacity: 0.7; }
+  50% { transform: translateY(-60px) translateX(-5px) scale(0.9); opacity: 0.5; }
+  75% { transform: translateY(-40px) translateX(15px) scale(1.05); opacity: 0.6; }
+}
+
+.particle {
+  animation: particleFloat 8s ease-in-out infinite;
+}
+
+/* ═══════ MARQUEE SCROLL ═══════ */
+
+.marquee-track {
+  display: flex;
+  gap: 2rem;
+  animation: scrollLeft 30s linear infinite;
+}
+
+.marquee-track:hover {
+  animation-play-state: paused;
+}
+
+/* ═══════ FONT CLAMP UTILITY ═══════ */
+
+.text-fluid-hero {
+  font-size: clamp(2.5rem, 7vw, 6rem);
+}
+
+.text-fluid-heading {
+  font-size: clamp(1.75rem, 4vw, 3rem);
+}
+
+.text-fluid-subheading {
+  font-size: clamp(1.125rem, 2vw, 1.5rem);
+}
+
+/* ═══════ BREATHING CIRCLE ANIMATION ═══════ */
+
+@keyframes breatheIn {
+  0% { transform: scale(0.6); opacity: 0.4; }
+  100% { transform: scale(1); opacity: 1; }
+}
+
+@keyframes breatheOut {
+  0% { transform: scale(1); opacity: 1; }
+  100% { transform: scale(0.6); opacity: 0.4; }
+}
+
+/* ═══════ BENTO GRID ═══════ */
+
+.bento-grid {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  grid-auto-rows: minmax(180px, auto);
+  gap: 1.25rem;
+}
+
+@media (max-width: 1024px) {
+  .bento-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 640px) {
+  .bento-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.bento-card {
+  border-radius: 1.5rem;
+  padding: 1.5rem;
+  transition: transform 0.4s ease, box-shadow 0.4s ease;
+  overflow: hidden;
+  position: relative;
+}
+
+.bento-card:hover {
+  transform: translateY(-6px);
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.1);
+}
+
+.dark .bento-card:hover {
+  box-shadow: 0 20px 60px rgba(0, 0, 0, 0.4);
+}

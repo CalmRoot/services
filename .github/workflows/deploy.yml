@@ -1,0 +1,296 @@
+name: CD - Build Push and Deploy
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  id-token: write
+  contents: write
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REGISTRY: 006805625766.dkr.ecr.us-east-1.amazonaws.com
+
+jobs:
+  generate-version:
+    name: Generate Semantic Version
+    runs-on: ubuntu-latest
+    outputs:
+      semantic_tag: ${{ steps.semver.outputs.new_tag }}
+      sha_tag: ${{ steps.sha.outputs.sha_tag }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Generate SHA tag
+        id: sha
+        run: |
+          SHORT_SHA=$(git rev-parse --short HEAD)
+          echo "sha_tag=prod-${SHORT_SHA}" >> $GITHUB_OUTPUT
+          echo "SHA tag: prod-${SHORT_SHA}"
+
+      - name: Generate Semantic Version
+        id: semver
+        uses: mathieudutour/github-tag-action@v6.2
+        with:
+          github_token: ${{ secrets.GITHUB_TOKEN }}
+          tag_prefix: "v"
+          default_bump: patch
+          initial_version: "1.0.0"
+          custom_release_rules: "feat:minor:Features,fix:patch:Fixes,breaking:major:Breaking Changes"
+          dry_run: false
+
+      - name: Print tags
+        run: |
+          echo "Semantic tag: ${{ steps.semver.outputs.new_tag }}"
+          echo "SHA tag: ${{ steps.sha.outputs.sha_tag }}"
+
+  build-and-push:
+    name: Build and Push - ${{ matrix.service }}
+    runs-on: ubuntu-latest
+    needs: generate-version
+    strategy:
+      matrix:
+        include:
+          - service: auth-service
+            ecr_repo: calmroot/auth-service
+          - service: assessment-service
+            ecr_repo: calmroot/assessment-service
+          - service: therapist-service
+            ecr_repo: calmroot/therapist-service
+          - service: frontend
+            ecr_repo: calmroot/frontend
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials via OIDC
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ secrets.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Build Docker image
+        run: |
+          SEMANTIC_TAG="${{ needs.generate-version.outputs.semantic_tag }}"
+          SHA_TAG="${{ needs.generate-version.outputs.sha_tag }}"
+          ECR_IMAGE="${{ env.ECR_REGISTRY }}/${{ matrix.ecr_repo }}"
+
+          docker build \
+            --platform linux/amd64 \
+            -t ${ECR_IMAGE}:${SEMANTIC_TAG} \
+            -t ${ECR_IMAGE}:${SHA_TAG} \
+            -t ${ECR_IMAGE}:latest \
+            ./${{ matrix.service }}
+
+          echo "Built image with tags:"
+          echo "  ${ECR_IMAGE}:${SEMANTIC_TAG}"
+          echo "  ${ECR_IMAGE}:${SHA_TAG}"
+          echo "  ${ECR_IMAGE}:latest"
+
+      - name: Run Trivy scan before push
+        uses: aquasecurity/trivy-action@master
+        with:
+          image-ref: "${{ env.ECR_REGISTRY }}/${{ matrix.ecr_repo }}:${{ needs.generate-version.outputs.semantic_tag }}"
+          format: table
+          exit-code: '1'
+          severity: CRITICAL,HIGH
+          ignore-unfixed: true
+
+      - name: Push all tags to ECR
+        run: |
+          SEMANTIC_TAG="${{ needs.generate-version.outputs.semantic_tag }}"
+          SHA_TAG="${{ needs.generate-version.outputs.sha_tag }}"
+          ECR_IMAGE="${{ env.ECR_REGISTRY }}/${{ matrix.ecr_repo }}"
+
+          docker push ${ECR_IMAGE}:${SEMANTIC_TAG}
+          docker push ${ECR_IMAGE}:${SHA_TAG}
+          docker push ${ECR_IMAGE}:latest
+
+          echo "Pushed all tags successfully"
+
+      - name: Send Email on Failure
+        if: failure()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: ${{ secrets.SMTP_USERNAME }}
+          password: ${{ secrets.SMTP_PASSWORD }}
+          subject: "CalmRoot CD Failed - Build/Push (${{ matrix.service }})"
+          to: ${{ secrets.ALERT_EMAIL }}
+          from: CalmRoot CD Pipeline
+          body: |
+            Docker build or push FAILED for: ${{ matrix.service }}
+
+            Semantic Tag : ${{ needs.generate-version.outputs.semantic_tag }}
+            SHA Tag      : ${{ needs.generate-version.outputs.sha_tag }}
+            Branch       : ${{ github.ref_name }}
+            Commit       : ${{ github.sha }}
+            Author       : ${{ github.actor }}
+
+            Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+  approval-gate:
+    name: Approval Gate - Production
+    runs-on: ubuntu-latest
+    needs: [generate-version, build-and-push]
+    environment: production
+    steps:
+      - name: Send Approval Request Email
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: ${{ secrets.SMTP_USERNAME }}
+          password: ${{ secrets.SMTP_PASSWORD }}
+          subject: "CalmRoot - Approval Needed for Production Deployment"
+          to: ${{ secrets.ALERT_EMAIL }}
+          from: CalmRoot CD Pipeline
+          body: |
+            A new build is waiting for your approval to deploy to production.
+
+            Semantic Tag : ${{ needs.generate-version.outputs.semantic_tag }}
+            SHA Tag      : ${{ needs.generate-version.outputs.sha_tag }}
+            Triggered By : ${{ github.actor }}
+            Branch       : ${{ github.ref_name }}
+            Commit       : ${{ github.sha }}
+
+            TO APPROVE:
+            1. Open: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+            2. Click "Review deployments"
+            3. Select "production"
+            4. Click "Approve and deploy"
+
+            TO REJECT:
+            Same link, click "Reject"
+
+      - name: Log approval
+        run: |
+          echo "Deployment approved"
+          echo "Semantic tag : ${{ needs.generate-version.outputs.semantic_tag }}"
+          echo "SHA tag      : ${{ needs.generate-version.outputs.sha_tag }}"
+          echo "Approved by  : ${{ github.actor }}"
+          echo "Time         : $(date -u)"
+
+  update-gitops:
+    name: Update GitOps Repo
+    runs-on: ubuntu-latest
+    needs: [generate-version, build-and-push, approval-gate]
+    steps:
+      - name: Checkout gitops repo
+        uses: actions/checkout@v4
+        with:
+          repository: CalmRoot/gitops
+          token: ${{ secrets.MANIFEST_REPO_PAT }}
+          path: gitops
+
+      - name: Install yq
+        run: |
+          sudo wget -qO /usr/local/bin/yq \
+            https://github.com/mikefarah/yq/releases/latest/download/yq_linux_amd64
+          sudo chmod +x /usr/local/bin/yq
+          yq --version
+
+      - name: Update image tags in values-prod.yaml
+        run: |
+          SEMANTIC_TAG="${{ needs.generate-version.outputs.semantic_tag }}"
+          SHA_TAG="${{ needs.generate-version.outputs.sha_tag }}"
+          cd gitops
+
+          echo "Updating values-prod.yaml"
+          echo "Semantic tag: ${SEMANTIC_TAG}"
+          echo "SHA tag     : ${SHA_TAG}"
+
+          yq -i ".frontend.image.tag = \"${SEMANTIC_TAG}\"" helm/calmroot/values-prod.yaml
+          yq -i ".frontend.image.shaTag = \"${SHA_TAG}\"" helm/calmroot/values-prod.yaml
+
+          yq -i ".authService.image.tag = \"${SEMANTIC_TAG}\"" helm/calmroot/values-prod.yaml
+          yq -i ".authService.image.shaTag = \"${SHA_TAG}\"" helm/calmroot/values-prod.yaml
+
+          yq -i ".assessmentService.image.tag = \"${SEMANTIC_TAG}\"" helm/calmroot/values-prod.yaml
+          yq -i ".assessmentService.image.shaTag = \"${SHA_TAG}\"" helm/calmroot/values-prod.yaml
+
+          yq -i ".therapistService.image.tag = \"${SEMANTIC_TAG}\"" helm/calmroot/values-prod.yaml
+          yq -i ".therapistService.image.shaTag = \"${SHA_TAG}\"" helm/calmroot/values-prod.yaml
+
+          echo "Updated values-prod.yaml:"
+          cat helm/calmroot/values-prod.yaml
+
+      - name: Commit and push to gitops repo
+        run: |
+          cd gitops
+          git config user.name "CalmRoot CI"
+          git config user.email "ci@calmroot.dev"
+
+          git add helm/calmroot/values-prod.yaml
+
+          if git diff --staged --quiet; then
+            echo "No changes to commit - tags already up to date"
+            exit 0
+          fi
+
+          SEMANTIC_TAG="${{ needs.generate-version.outputs.semantic_tag }}"
+          SHA_TAG="${{ needs.generate-version.outputs.sha_tag }}"
+          git commit -m "cd(production): deploy ${SEMANTIC_TAG} (${SHA_TAG}) [skip ci]"
+
+          for i in 1 2 3 4 5; do
+            git push && break
+            echo "Push failed, retry $i/5"
+            git pull --rebase origin main
+            sleep $((i * 2))
+          done
+
+      - name: Send Success Email
+        if: success()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: ${{ secrets.SMTP_USERNAME }}
+          password: ${{ secrets.SMTP_PASSWORD }}
+          subject: "CalmRoot CD Success - Production Deployed"
+          to: ${{ secrets.ALERT_EMAIL }}
+          from: CalmRoot CD Pipeline
+          body: |
+            Production deployment completed successfully.
+
+            Semantic Tag : ${{ needs.generate-version.outputs.semantic_tag }}
+            SHA Tag      : ${{ needs.generate-version.outputs.sha_tag }}
+            Triggered By : ${{ github.actor }}
+            Branch       : ${{ github.ref_name }}
+            Commit       : ${{ github.sha }}
+
+            ArgoCD will sync to production namespace within 3 minutes.
+
+            GitOps repo: https://github.com/CalmRoot/gitops
+
+            Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+
+      - name: Send Failure Email
+        if: failure()
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: ${{ secrets.SMTP_USERNAME }}
+          password: ${{ secrets.SMTP_PASSWORD }}
+          subject: "CalmRoot CD Failed - GitOps Update Failed"
+          to: ${{ secrets.ALERT_EMAIL }}
+          from: CalmRoot CD Pipeline
+          body: |
+            GitOps manifest update FAILED.
+
+            Semantic Tag : ${{ needs.generate-version.outputs.semantic_tag }}
+            SHA Tag      : ${{ needs.generate-version.outputs.sha_tag }}
+            Triggered By : ${{ github.actor }}
+            Branch       : ${{ github.ref_name }}
+            Commit       : ${{ github.sha }}
+
+            Run: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
