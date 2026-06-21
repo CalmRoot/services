@@ -7,7 +7,7 @@ const { getSecret } = require('../config/secrets-manager');
 const generateToken = (user) => {
   return jwt.sign(
     { sub: user._id, email: user.email, role: user.role, name: user.name },
-    getSecret('calmroot/production/jwt-secret'),
+    getSecret('calmroot/prod/jwt'),
     { algorithm: 'HS256', expiresIn: '24h' }
   );
 };
